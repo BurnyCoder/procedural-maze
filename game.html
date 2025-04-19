@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Maze Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the game canvas and elements */
+        body {
+            font-family: 'Inter', sans-serif; /* Use Inter font */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f3f4f6; /* Light gray background */
+            margin: 0;
+            padding: 20px; /* Add some padding */
+            box-sizing: border-box;
+        }
+        canvas {
+            display: block;
+            background-color: #e5e7eb; /* Slightly darker gray for canvas */
+            border: 1px solid #d1d5db; /* Gray border */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+            border-radius: 8px; /* Rounded corners for canvas */
+            max-width: 100%; /* Ensure canvas fits smaller screens */
+            height: auto; /* Maintain aspect ratio */
+        }
+        #messageBox {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 1.5em;
+            text-align: center;
+            display: none; /* Hidden by default */
+            z-index: 10;
+        }
+        /* Style the button using Tailwind classes */
+        .game-button {
+            @apply mt-4 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition duration-150 ease-in-out cursor-pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <h1 class="text-3xl font-bold mb-4 text-gray-800">Procedural Maze Game</h1>
+    <p class="text-gray-600 mb-4">Use Arrow Keys to move the blue square to the green square.</p>
+
+    <canvas id="mazeCanvas"></canvas>
+    <button id="generateButton" class="game-button">Generate New Maze</button>
+
+    <div id="messageBox">You Win!</div>
+
+    <script>
+        // --- Game Configuration ---
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        const generateButton = document.getElementById('generateButton');
+        const messageBox = document.getElementById('messageBox');
+
+        const MAZE_COLS = 20; // Number of columns in the maze
+        const MAZE_ROWS = 15; // Number of rows in the maze
+        const CELL_SIZE = 25; // Size of each cell in pixels
+
+        // Calculate canvas dimensions based on maze size
+        canvas.width = MAZE_COLS * CELL_SIZE;
+        canvas.height = MAZE_ROWS * CELL_SIZE;
+
+        // Colors
+        const WALL_COLOR = '#374151';    // Dark Gray
+        const PATH_COLOR = '#e5e7eb';    // Light Gray (same as canvas bg)
+        const PLAYER_COLOR = '#2563eb';  // Blue
+        const GOAL_COLOR = '#10b981';    // Green
+        const START_COLOR = '#f59e0b';   // Amber (Optional, can use player color)
+
+        // --- Game State ---
+        let maze = []; // 2D array representing the maze structure
+        let player = { x: 0, y: 0 }; // Player position (col, row)
+        let goal = { x: MAZE_COLS - 1, y: MAZE_ROWS - 1 }; // Goal position
+        let gameWon = false;
+
+        // --- Maze Generation (Depth-First Search) ---
+        function generateMaze() {
+            console.log("Generating maze...");
+            gameWon = false; // Reset win state
+            messageBox.style.display = 'none'; // Hide win message
+
+            // 1. Initialize the maze grid with all walls
+            maze = Array(MAZE_ROWS).fill(null).map(() => Array(MAZE_COLS).fill(1)); // 1 represents a wall
+
+            // 2. Stack for DFS
+            const stack = [];
+            const startX = 0; // Start generation from top-left
+            const startY = 0;
+
+            // Mark the starting cell as a path (0) and push it to the stack
+            maze[startY][startX] = 0;
+            stack.push({ x: startX, y: startY });
+
+            // 3. DFS Algorithm
+            while (stack.length > 0) {
+                const current = stack[stack.length - 1]; // Get the top cell without removing
+                const neighbors = [];
+
+                // Define potential neighbors (up, down, left, right) - check 2 cells away
+                const potentialNeighbors = [
+                    { x: current.x, y: current.y - 2, wallX: current.x, wallY: current.y - 1 }, // Up
+                    { x: current.x, y: current.y + 2, wallX: current.x, wallY: current.y + 1 }, // Down
+                    { x: current.x - 2, y: current.y, wallX: current.x - 1, wallY: current.y }, // Left
+                    { x: current.x + 2, y: current.y, wallX: current.x + 1, wallY: current.y }  // Right
+                ];
+
+                // Check valid and unvisited neighbors
+                for (const n of potentialNeighbors) {
+                    if (n.x >= 0 && n.x < MAZE_COLS && n.y >= 0 && n.y < MAZE_ROWS && maze[n.y][n.x] === 1) {
+                        neighbors.push(n);
+                    }
+                }
+
+                if (neighbors.length > 0) {
+                    // Choose a random neighbor
+                    const chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
+
+                    // Carve path to the neighbor:
+                    // 1. Mark the wall between current and chosen as path
+                    maze[chosen.wallY][chosen.wallX] = 0;
+                    // 2. Mark the chosen cell as path
+                    maze[chosen.y][chosen.x] = 0;
+                    // 3. Push the chosen cell to the stack
+                    stack.push({ x: chosen.x, y: chosen.y });
+                } else {
+                    // No unvisited neighbors, backtrack
+                    stack.pop();
+                }
+            }
+
+            // Ensure start and end points are paths (should be by DFS, but good practice)
+            maze[0][0] = 0;
+            maze[MAZE_ROWS - 1][MAZE_COLS - 1] = 0;
+
+            // Reset player position
+            player.x = 0;
+            player.y = 0;
+
+            console.log("Maze generated.");
+            drawGame(); // Draw the newly generated maze
+        }
+
+        // --- Drawing Functions ---
+        function drawGame() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw maze
+            for (let y = 0; y < MAZE_ROWS; y++) {
+                for (let x = 0; x < MAZE_COLS; x++) {
+                    ctx.fillStyle = maze[y][x] === 1 ? WALL_COLOR : PATH_COLOR;
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+
+            // Draw Goal
+            ctx.fillStyle = GOAL_COLOR;
+            ctx.fillRect(goal.x * CELL_SIZE, goal.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            // Add a subtle inner square to the goal for better visibility
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(goal.x * CELL_SIZE + CELL_SIZE * 0.2, goal.y * CELL_SIZE + CELL_SIZE * 0.2, CELL_SIZE * 0.6, CELL_SIZE * 0.6);
+
+
+            // Draw Player
+            ctx.fillStyle = PLAYER_COLOR;
+            ctx.fillRect(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            // Add a subtle inner square to the player
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+             ctx.fillRect(player.x * CELL_SIZE + CELL_SIZE * 0.2, player.y * CELL_SIZE + CELL_SIZE * 0.2, CELL_SIZE * 0.6, CELL_SIZE * 0.6);
+        }
+
+        // --- Player Movement & Collision ---
+        function movePlayer(dx, dy) {
+            if (gameWon) return; // Don't move if game is already won
+
+            const nextX = player.x + dx;
+            const nextY = player.y + dy;
+
+            // Check boundaries
+            if (nextX < 0 || nextX >= MAZE_COLS || nextY < 0 || nextY >= MAZE_ROWS) {
+                return; // Out of bounds
+            }
+
+            // Check for wall collision
+            if (maze[nextY][nextX] === 1) {
+                return; // Hit a wall
+            }
+
+            // Move player
+            player.x = nextX;
+            player.y = nextY;
+
+            // Redraw the game state
+            drawGame();
+
+            // Check for win condition
+            if (player.x === goal.x && player.y === goal.y) {
+                winGame();
+            }
+        }
+
+        // --- Win Condition ---
+        function winGame() {
+            console.log("You Win!");
+            gameWon = true;
+            messageBox.style.display = 'block'; // Show win message
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    movePlayer(0, -1);
+                    e.preventDefault(); // Prevent page scrolling
+                    break;
+                case 'ArrowDown':
+                    movePlayer(0, 1);
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    movePlayer(-1, 0);
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    movePlayer(1, 0);
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        generateButton.addEventListener('click', generateMaze);
+
+        // --- Initial Game Setup ---
+        window.onload = () => {
+            generateMaze(); // Generate the first maze when the page loads
+        };
+
+    </script>
+
+</body>
+</html>
